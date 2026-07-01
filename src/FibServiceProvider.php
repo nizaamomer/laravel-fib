@@ -10,6 +10,7 @@ use Nizaamomer\LaravelFib\Contracts\FibAuthServiceContract;
 use Nizaamomer\LaravelFib\Contracts\Payments\FibPaymentServiceContract;
 use Nizaamomer\LaravelFib\Contracts\Payouts\FibPayoutServiceContract;
 use Nizaamomer\LaravelFib\Events\Payments\PaymentCreated;
+use Nizaamomer\LaravelFib\Events\Payments\PaymentRefundRequested;
 use Nizaamomer\LaravelFib\Events\Payments\PaymentStatusUpdated;
 use Nizaamomer\LaravelFib\Events\Payouts\PayoutCreated;
 use Nizaamomer\LaravelFib\Events\Payouts\PayoutStatusUpdated;
@@ -28,7 +29,7 @@ class FibServiceProvider extends PackageServiceProvider
         $package
             ->name('fib')
             ->hasConfigFile('fib')
-            ->hasMigrations('create_fib_payments_table', 'create_fib_payouts_table')
+            ->hasMigrations('create_fib_payments_table', 'create_fib_payouts_table', 'create_fib_refunds_table')
             ->runsMigrations()
             ->hasCommand(SyncFibStatuses::class);
     }
@@ -44,6 +45,7 @@ class FibServiceProvider extends PackageServiceProvider
     {
         Event::listen(PaymentCreated::class, [PersistPaymentListener::class, 'onCreated']);
         Event::listen(PaymentStatusUpdated::class, [PersistPaymentListener::class, 'onStatusUpdated']);
+        Event::listen(PaymentRefundRequested::class, [PersistPaymentListener::class, 'onRefundRequested']);
         Event::listen(PayoutCreated::class, [PersistPayoutListener::class, 'onCreated']);
         Event::listen(PayoutStatusUpdated::class, [PersistPayoutListener::class, 'onStatusUpdated']);
     }

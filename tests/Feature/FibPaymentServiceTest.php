@@ -6,7 +6,10 @@ use Illuminate\Support\Facades\Http;
 use Nizaamomer\LaravelFib\Contracts\Payments\FibPaymentServiceContract;
 use Nizaamomer\LaravelFib\Data\Payments\PaymentData;
 use Nizaamomer\LaravelFib\Enums\Payments\PaymentStatus;
+use Nizaamomer\LaravelFib\Enums\Payments\RefundStatus;
+use Nizaamomer\LaravelFib\Exceptions\FibPaymentException;
 use Nizaamomer\LaravelFib\Models\FibPayment;
+use Nizaamomer\LaravelFib\Models\FibRefund;
 
 beforeEach(function () {
     Http::fake([
@@ -81,3 +84,59 @@ it('cancels a payment', function () {
 
     expect($result)->toBeTrue();
 });
+
+it('accepts a refund and persists it', function () {
+    FibPayment::query()->create([
+        'account' => 'default',
+        'payment_id' => '4d6f7625-60f7-48e3-82e3-b4592a4eb993',
+        'amount' => 500,
+        'currency' => 'IQD',
+        'status' => PaymentStatus::Paid,
+    ]);
+
+    Http::fake([
+        '*/protected/v1/payments/*/refund' => Http::response(null, 202),
+    ]);
+
+    $refund = app(FibPaymentServiceContract::class)->refund('4d6f7625-60f7-48e3-82e3-b4592a4eb993');
+
+    expect($refund->isSuccessful())->toBeTrue()
+        ->and($refund->status)->toBe(RefundStatus::Success);
+
+    expect(FibRefund::query()->where('fib_trace_id', null)->value('status'))
+        ->toBe(RefundStatus::Success);
+});
+
+it('records a declined refund with its trace id and error codes', function () {
+    FibPayment::query()->create([
+        'account' => 'default',
+        'payment_id' => '4d6f7625-60f7-48e3-82e3-b4592a4eb993',
+        'amount' => 500,
+        'currency' => 'IQD',
+        'status' => PaymentStatus::Paid,
+    ]);
+
+    Http::fake([
+        '*/protected/v1/payments/*/refund' => Http::response([
+            'traceId' => 'trace-123',
+            'errors' => [['code' => 'REFUND_WINDOW_EXPIRED']],
+        ], 400),
+    ]);
+
+    $refund = app(FibPaymentServiceContract::class)->refund('4d6f7625-60f7-48e3-82e3-b4592a4eb993');
+
+    expect($refund->isSuccessful())->toBeFalse()
+        ->and($refund->traceId)->toBe('trace-123')
+        ->and($refund->errorCodes)->toBe(['REFUND_WINDOW_EXPIRED']);
+
+    expect(FibRefund::query()->where('fib_trace_id', 'trace-123')->value('status'))
+        ->toBe(RefundStatus::Failed);
+});
+
+it('throws on an unexpected refund response', function () {
+    Http::fake([
+        '*/protected/v1/payments/*/refund' => Http::response(['ok' => true], 200),
+    ]);
+
+    app(FibPaymentServiceContract::class)->refund('4d6f7625-60f7-48e3-82e3-b4592a4eb993');
+})->throws(FibPaymentException::class);

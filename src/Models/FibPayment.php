@@ -6,6 +6,7 @@ namespace Nizaamomer\LaravelFib\Models;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Nizaamomer\LaravelFib\Enums\Payments\DecliningReason;
 use Nizaamomer\LaravelFib\Enums\Payments\PaymentStatus;
@@ -48,5 +49,13 @@ class FibPayment extends Model
     public function payable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    /**
+     * @return HasOne<FibRefund, $this>
+     */
+    public function refund(): HasOne
+    {
+        return $this->hasOne(FibRefund::class, 'payment_id');
     }
 }

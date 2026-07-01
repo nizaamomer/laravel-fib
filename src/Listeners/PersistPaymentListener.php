@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Nizaamomer\LaravelFib\Listeners;
 
 use Nizaamomer\LaravelFib\Events\Payments\PaymentCreated;
+use Nizaamomer\LaravelFib\Events\Payments\PaymentRefundRequested;
 use Nizaamomer\LaravelFib\Events\Payments\PaymentStatusUpdated;
 use Nizaamomer\LaravelFib\Models\FibPayment;
+use Nizaamomer\LaravelFib\Models\FibRefund;
 
 final class PersistPaymentListener
 {
@@ -39,6 +41,26 @@ final class PersistPaymentListener
                 'valid_until' => $status->validUntil,
                 'paid_at' => $status->paidAt,
                 'declined_at' => $status->declinedAt,
+            ],
+        );
+    }
+
+    public function onRefundRequested(PaymentRefundRequested $event): void
+    {
+        $refund = $event->refund;
+
+        $payment = FibPayment::query()->where('payment_id', $refund->paymentId)->first();
+
+        if ($payment === null) {
+            return;
+        }
+
+        FibRefund::query()->updateOrCreate(
+            ['payment_id' => $payment->id],
+            [
+                'fib_trace_id' => $refund->traceId,
+                'status' => $refund->status,
+                'error_codes' => $refund->errorCodes,
             ],
         );
     }

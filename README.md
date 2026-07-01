@@ -29,7 +29,7 @@ Publish the config file:
 php artisan vendor:publish --tag="fib-config"
 ```
 
-Run the migrations (creates `fib_payments` and `fib_payouts` tables — every payment/payout is automatically persisted for you, no manual tracking code needed):
+Run the migrations (creates `fib_payments`, `fib_payouts` and `fib_refunds` tables — every payment/payout/refund is automatically persisted for you, no manual tracking code needed):
 
 ```bash
 php artisan migrate
@@ -100,6 +100,23 @@ $status->paidAt;         // ?CarbonImmutable
 ```php
 FibPayment::cancel($payment->paymentId);
 ```
+
+### Refunding a payment
+
+> **⚠️ Undocumented endpoint.** `/payments/{id}/refund` does not appear anywhere in FIB's published API reference — this was reverse-engineered by reading First Iraqi Bank's own [fib-laravel-payment-sdk](https://packagist.org/packages/first-iraqi-bank/fib-laravel-payment-sdk) source, not from official docs. Verify the behavior against your sandbox account before relying on it in production, and don't be surprised if FIB changes it without notice.
+
+```php
+$refund = FibPayment::refund($payment->paymentId);
+
+$refund->isSuccessful(); // bool — true only on HTTP 202
+$refund->status;         // RefundStatus::Success | Failed
+$refund->traceId;        // ?string, present on failure — quote this to FIB support
+$refund->errorCodes;     // ?array<string>, present on failure
+```
+
+A `PaymentRefundRequested` event fires either way and is persisted to `fib_refunds`, linked to the `fib_payments` row via `FibPayment::refund()`.
+
+Every `create()` call also sends `refundableFor` (from `FIB_REFUNDABLE_FOR`) to FIB, again mirroring the vendor SDK rather than official docs — this asks FIB to only allow refunds within that window, on top of your own `PaymentStatusData::isRefundable()` local policy check.
 
 ### Handling the payment callback — never trust the webhook body
 

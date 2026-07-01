@@ -8,11 +8,13 @@ use Illuminate\Support\Facades\Facade;
 use Nizaamomer\LaravelFib\Contracts\Payments\FibPaymentServiceContract;
 use Nizaamomer\LaravelFib\Data\Payments\PaymentData;
 use Nizaamomer\LaravelFib\Data\Payments\PaymentStatusData;
+use Nizaamomer\LaravelFib\Data\Payments\RefundData;
 
 /**
  * @method static PaymentData create(float $amount, ?string $description = null, ?string $callbackUrl = null, ?string $account = null)
  * @method static PaymentStatusData status(string $paymentId, ?string $account = null)
  * @method static bool cancel(string $paymentId, ?string $account = null)
+ * @method static RefundData refund(string $paymentId, ?string $account = null)
  *
  * @see FibPaymentServiceContract
  */

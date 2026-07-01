@@ -10,7 +10,9 @@ use Nizaamomer\LaravelFib\Contracts\FibAuthServiceContract;
 use Nizaamomer\LaravelFib\Contracts\Payments\FibPaymentServiceContract;
 use Nizaamomer\LaravelFib\Data\Payments\PaymentData;
 use Nizaamomer\LaravelFib\Data\Payments\PaymentStatusData;
+use Nizaamomer\LaravelFib\Data\Payments\RefundData;
 use Nizaamomer\LaravelFib\Events\Payments\PaymentCreated;
+use Nizaamomer\LaravelFib\Events\Payments\PaymentRefundRequested;
 use Nizaamomer\LaravelFib\Events\Payments\PaymentStatusUpdated;
 use Nizaamomer\LaravelFib\Exceptions\FibAccountException;
 use Nizaamomer\LaravelFib\Exceptions\FibPaymentException;
@@ -41,6 +43,9 @@ final class FibPaymentService implements FibPaymentServiceContract
             ],
             'statusCallbackUrl' => $callbackUrl ?? config('fib.callback_url'),
             'description' => $description !== null ? mb_substr($description, 0, 50) : null,
+            // Not documented in FIB's public API reference; sent by First
+            // Iraqi Bank's own SDK, so mirrored here for parity.
+            'refundableFor' => config('fib.refundable_for'),
         ], fn ($value) => $value !== null);
 
         $response = $this->client($account)->post('/protected/v1/payments', $payload);
@@ -92,6 +97,23 @@ final class FibPaymentService implements FibPaymentServiceContract
         }
 
         return true;
+    }
+
+    public function refund(string $paymentId, ?string $account = null): RefundData
+    {
+        $account ??= (string) config('fib.default');
+
+        $response = $this->client($account)->post('/protected/v1/payments/'.rawurlencode($paymentId).'/refund');
+
+        $refund = match (true) {
+            $response->status() === 202 => RefundData::accepted($paymentId),
+            $response->failed() => RefundData::declined($paymentId, $response->json() ?? []),
+            default => throw FibPaymentException::requestFailed('refund payment', $response->status(), $response->body()),
+        };
+
+        PaymentRefundRequested::dispatch($refund, $account);
+
+        return $refund;
     }
 
     private function client(string $account): PendingRequest
