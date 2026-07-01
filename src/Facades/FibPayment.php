@@ -1,0 +1,25 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Nizaamomer\LaravelFib\Facades;
+
+use Illuminate\Support\Facades\Facade;
+use Nizaamomer\LaravelFib\Contracts\Payments\FibPaymentServiceContract;
+use Nizaamomer\LaravelFib\Data\Payments\PaymentData;
+use Nizaamomer\LaravelFib\Data\Payments\PaymentStatusData;
+
+/**
+ * @method static PaymentData create(float $amount, ?string $description = null, ?string $callbackUrl = null, ?string $account = null)
+ * @method static PaymentStatusData status(string $paymentId, ?string $account = null)
+ * @method static bool cancel(string $paymentId, ?string $account = null)
+ *
+ * @see FibPaymentServiceContract
+ */
+class FibPayment extends Facade
+{
+    protected static function getFacadeAccessor(): string
+    {
+        return FibPaymentServiceContract::class;
+    }
+}
