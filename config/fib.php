@@ -25,6 +25,9 @@ return [
     | can accept payments/send payouts through multiple FIB business or
     | corporate accounts.
     |
+    | base_url: stage (test) is https://fib.stage.fib.iq, production (live)
+    | is https://fib.prod.fib.iq.
+    |
     */
     'accounts' => [
         'default' => [
@@ -68,6 +71,9 @@ return [
     | refundable. Sent to FIB on payment creation, and also used locally by
     | PaymentStatusData::isRefundable() as a policy check before calling
     | FibPayment::refund().
+    |
+    | Must be between 12 hours (PT12H) and 7 days (P7D) — FIB defaults to
+    | 24 hours if this is omitted entirely.
     |
     */
     'refundable_for' => env('FIB_REFUNDABLE_FOR', 'P7D'),

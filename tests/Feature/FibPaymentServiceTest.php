@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Http;
 use Nizaamomer\LaravelFib\Contracts\Payments\FibPaymentServiceContract;
 use Nizaamomer\LaravelFib\Data\Payments\PaymentData;
+use Nizaamomer\LaravelFib\Enums\Payments\PaymentCategory;
 use Nizaamomer\LaravelFib\Enums\Payments\PaymentStatus;
 use Nizaamomer\LaravelFib\Enums\Payments\RefundStatus;
 use Nizaamomer\LaravelFib\Exceptions\FibPaymentException;
@@ -50,6 +51,41 @@ it('rejects a non-positive amount', function () {
     app(FibPaymentServiceContract::class)->create(0.0);
 })->throws(InvalidArgumentException::class);
 
+it('sends redirectUri, expiresIn and category on create', function () {
+    Http::fake([
+        '*/protected/v1/payments' => Http::response([
+            'paymentId' => '9dfa724f-4784-4487-811b-63057b540503',
+            'readableCode' => 'S3LE-NZ2S-ZNGF',
+            'qrCode' => 'data:image/png;base64,fake',
+            'personalAppLink' => null,
+            'businessAppLink' => null,
+            'corporateAppLink' => null,
+            'validUntil' => '2022-01-31T12:15:44.020920Z',
+        ], 202),
+    ]);
+
+    app(FibPaymentServiceContract::class)->create(
+        amount: 505.0,
+        redirectUri: 'https://example.test/redirect',
+        expiresIn: 'PT8H6M12.345S',
+        category: PaymentCategory::Pos,
+    );
+
+    Http::assertSent(function ($request) {
+        return $request->url() === 'https://fib.stage.fib.iq/protected/v1/payments'
+            && $request['redirectUri'] === 'https://example.test/redirect'
+            && $request['expiresIn'] === 'PT8H6M12.345S'
+            && $request['category'] === 'POS'
+            && $request['refundableFor'] === 'P7D';
+    });
+});
+
+it('rejects a refundable_for window outside FIB\'s 12h-7d range', function () {
+    config()->set('fib.refundable_for', 'PT1H');
+
+    app(FibPaymentServiceContract::class)->create(500.0);
+})->throws(InvalidArgumentException::class);
+
 it('checks a payment status and persists it', function () {
     Http::fake([
         '*/protected/v1/payments/*/status' => Http::response([
@@ -74,6 +110,25 @@ it('checks a payment status and persists it', function () {
     expect(FibPayment::query()->where('payment_id', $status->paymentId)->value('status'))
         ->toBe(PaymentStatus::Unpaid);
 });
+
+it('parses REFUND_REQUESTED and REFUNDED statuses without error', function (string $status) {
+    Http::fake([
+        '*/protected/v1/payments/*/status' => Http::response([
+            'paymentId' => '4d6f7625-60f7-48e3-82e3-b4592a4eb993',
+            'status' => $status,
+            'validUntil' => '2022-01-31T12:26:12.544Z',
+            'paidAt' => '2022-01-31T10:00:00.000Z',
+            'amount' => ['amount' => 500, 'currency' => 'IQD'],
+            'decliningReason' => null,
+            'declinedAt' => null,
+            'paidBy' => null,
+        ], 200),
+    ]);
+
+    $result = app(FibPaymentServiceContract::class)->status('4d6f7625-60f7-48e3-82e3-b4592a4eb993');
+
+    expect($result->status)->toBe(PaymentStatus::from($status));
+})->with(['REFUND_REQUESTED', 'REFUNDED']);
 
 it('cancels a payment', function () {
     Http::fake([

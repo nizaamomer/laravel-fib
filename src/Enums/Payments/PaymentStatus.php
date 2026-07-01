@@ -9,4 +9,6 @@ enum PaymentStatus: string
     case Paid = 'PAID';
     case Unpaid = 'UNPAID';
     case Declined = 'DECLINED';
+    case RefundRequested = 'REFUND_REQUESTED';
+    case Refunded = 'REFUNDED';
 }

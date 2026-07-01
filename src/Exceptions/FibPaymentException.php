@@ -18,4 +18,11 @@ class FibPaymentException extends RuntimeException
     {
         return new InvalidArgumentException("Payment amount must be greater than zero, got {$amount}.");
     }
+
+    public static function invalidRefundableWindow(string $refundableFor): InvalidArgumentException
+    {
+        return new InvalidArgumentException(
+            "fib.refundable_for [{$refundableFor}] must be between 12 hours (PT12H) and 7 days (P7D)."
+        );
+    }
 }

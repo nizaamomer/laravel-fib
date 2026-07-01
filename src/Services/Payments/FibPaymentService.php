@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nizaamomer\LaravelFib\Services\Payments;
 
+use Carbon\CarbonInterval;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Nizaamomer\LaravelFib\Contracts\FibAuthServiceContract;
@@ -11,6 +12,7 @@ use Nizaamomer\LaravelFib\Contracts\Payments\FibPaymentServiceContract;
 use Nizaamomer\LaravelFib\Data\Payments\PaymentData;
 use Nizaamomer\LaravelFib\Data\Payments\PaymentStatusData;
 use Nizaamomer\LaravelFib\Data\Payments\RefundData;
+use Nizaamomer\LaravelFib\Enums\Payments\PaymentCategory;
 use Nizaamomer\LaravelFib\Events\Payments\PaymentCreated;
 use Nizaamomer\LaravelFib\Events\Payments\PaymentRefundRequested;
 use Nizaamomer\LaravelFib\Events\Payments\PaymentStatusUpdated;
@@ -27,6 +29,9 @@ final class FibPaymentService implements FibPaymentServiceContract
         float $amount,
         ?string $description = null,
         ?string $callbackUrl = null,
+        ?string $redirectUri = null,
+        ?string $expiresIn = null,
+        ?PaymentCategory $category = null,
         ?string $account = null,
     ): PaymentData {
         if ($amount <= 0) {
@@ -35,6 +40,7 @@ final class FibPaymentService implements FibPaymentServiceContract
 
         $account ??= (string) config('fib.default');
         $currency = (string) config('fib.currency', 'IQD');
+        $refundableFor = $this->validatedRefundableFor((string) config('fib.refundable_for'));
 
         $payload = array_filter([
             'monetaryValue' => [
@@ -43,7 +49,10 @@ final class FibPaymentService implements FibPaymentServiceContract
             ],
             'statusCallbackUrl' => $callbackUrl ?? config('fib.callback_url'),
             'description' => $description !== null ? mb_substr($description, 0, 50) : null,
-            'refundableFor' => config('fib.refundable_for'),
+            'redirectUri' => $redirectUri,
+            'expiresIn' => $expiresIn,
+            'category' => $category?->value,
+            'refundableFor' => $refundableFor,
         ], fn ($value) => $value !== null);
 
         $response = $this->client($account)->post('/protected/v1/payments', $payload);
@@ -112,6 +121,24 @@ final class FibPaymentService implements FibPaymentServiceContract
         PaymentRefundRequested::dispatch($refund, $account);
 
         return $refund;
+    }
+
+    /**
+     * FIB only accepts a refundableFor duration between 12 hours and 7 days.
+     */
+    private function validatedRefundableFor(?string $refundableFor): ?string
+    {
+        if ($refundableFor === null) {
+            return null;
+        }
+
+        $seconds = (new CarbonInterval($refundableFor))->totalSeconds;
+
+        if ($seconds < 12 * 3600 || $seconds > 7 * 86400) {
+            throw FibPaymentException::invalidRefundableWindow($refundableFor);
+        }
+
+        return $refundableFor;
     }
 
     private function client(string $account): PendingRequest

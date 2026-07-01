@@ -48,12 +48,22 @@ final readonly class PaymentStatusData
         return $this->status === PaymentStatus::Paid;
     }
 
+    public function isRefundRequested(): bool
+    {
+        return $this->status === PaymentStatus::RefundRequested;
+    }
+
+    public function isRefunded(): bool
+    {
+        return $this->status === PaymentStatus::Refunded;
+    }
+
     /**
      * Whether this payment falls within your application's configured
      * refundable window (config('fib.refundable_for'), default P7D).
      *
-     * FIB does not expose a refund API endpoint — this is a policy helper
-     * for your own refund/dispute workflow, not a live check against FIB.
+     * This is a local, informational check — FIB is the source of truth
+     * for whether FibPayment::refund() will actually succeed.
      */
     public function isRefundable(): bool
     {

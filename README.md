@@ -13,6 +13,26 @@ A modern Laravel SDK for [First Iraqi Bank (FIB)](https://fib.iq) — **payments
 
 Built by [Nizaam Omer](https://nizaamomer.com) — [nizaamomer.com](https://nizaamomer.com)
 
+## Table of Contents
+
+- [Why one package?](#why-one-package)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Payments](#payments)
+  - [Creating a payment](#creating-a-payment)
+  - [Checking payment status](#checking-payment-status)
+  - [Cancelling a payment](#cancelling-a-payment)
+  - [Refunding a payment](#refunding-a-payment)
+  - [Handling the payment callback](#handling-the-payment-callback--never-trust-the-webhook-body)
+  - [Missed webhooks: the sync command](#missed-webhooks-the-sync-command)
+- [Payouts](#payouts)
+- [Automatic persistence](#automatic-persistence)
+- [Security](#security)
+- [Testing](#testing)
+- [FIB API Reference](#fib-api-reference)
+- [Author](#author)
+- [License](#license)
+
 ## Why one package?
 
 Payments, payouts, and refunds all share the same OAuth2 client-credentials flow, the same `base_url`, and the same per-account credentials — splitting them into separate packages would mean authenticating multiple times and configuring everything twice. `FibPayment` handles money coming **in** (and refunds going back out), `FibPayout` handles money going **out**, both backed by one shared, cached OAuth token per account.
@@ -44,7 +64,7 @@ Add your FIB credentials to `.env`:
 
 ```env
 FIB_DEFAULT_ACCOUNT=default                    # which "accounts" entry in config/fib.php to use by default
-FIB_BASE_URL=https://fib.stage.fib.iq          # sandbox by default — swap for your production URL when ready
+FIB_BASE_URL=https://fib.stage.fib.iq          # stage (test). Production is https://fib.prod.fib.iq
 FIB_CLIENT_ID=your-client-id                   # provided by FIB
 FIB_CLIENT_SECRET=your-client-secret           # provided by FIB — keep this out of version control
 FIB_CURRENCY=IQD                               # default currency for payments and payouts
@@ -52,6 +72,7 @@ FIB_CALLBACK_URL=https://your-app.test/fib/callback  # FIB POSTs payment status 
 FIB_REFUNDABLE_FOR=P7D                         # optional, ISO-8601 duration — how long a payment stays refundable, defaults to P7D
 ```
 
+<!--
 ### Multiple accounts
 
 Add more entries under `accounts` in `config/fib.php` to accept payments/send payouts through multiple FIB business or corporate accounts, then pass the account name as the last argument of any SDK call:
@@ -59,6 +80,7 @@ Add more entries under `accounts` in `config/fib.php` to accept payments/send pa
 ```php
 FibPayment::create(500.00, account: 'second_account');
 ```
+-->
 
 ## Payments
 
@@ -81,6 +103,19 @@ $payment->businessAppLink;
 $payment->validUntil;     // CarbonImmutable
 ```
 
+A few more optional arguments are available when you need them:
+
+```php
+use Nizaamomer\LaravelFib\Enums\Payments\PaymentCategory;
+
+FibPayment::create(
+    amount: 500.00,
+    redirectUri: 'https://your-app.test/orders/1042', // where FIB redirects the user after paying/cancelling
+    expiresIn: 'PT8H6M12.345S',                        // ISO-8601 duration — expire the payment after this long
+    category: PaymentCategory::Ecommerce,              // defaults to UNKNOWN on FIB's side if omitted
+);
+```
+
 Or resolve the contract instead of using the facade:
 
 ```php
@@ -94,7 +129,7 @@ public function __construct(private FibPaymentServiceContract $payments) {}
 ```php
 $status = FibPayment::status($payment->paymentId);
 
-$status->status;         // PaymentStatus::Paid | Unpaid | Declined
+$status->status;         // PaymentStatus::Paid | Unpaid | Declined | RefundRequested | Refunded
 $status->isPaid();       // bool
 $status->isRefundable(); // bool, based on FIB_REFUNDABLE_FOR
 $status->amount;         // float
@@ -109,6 +144,8 @@ FibPayment::cancel($payment->paymentId);
 
 ### Refunding a payment
 
+Only payments with `PAID` status, within their refundable window, can be refunded.
+
 ```php
 $refund = FibPayment::refund($payment->paymentId);
 
@@ -118,11 +155,11 @@ $refund->traceId;        // ?string, present on failure — quote this to FIB su
 $refund->errorCodes;     // ?array<string>, present on failure
 ```
 
-A `PaymentRefundRequested` event fires either way and is persisted to `fib_refunds`, linked back to the `fib_payments` row.
+After accepting a refund (202), FIB moves the payment through `REFUND_REQUESTED` and then `REFUNDED` — call `FibPayment::status()` again (or let `fib:sync-statuses` do it) to see the final state. A `PaymentRefundRequested` event fires either way and is persisted to `fib_refunds`, linked back to the `fib_payments` row.
 
 ### Handling the payment callback — never trust the webhook body
 
-FIB's webhook payload is **not signed**. Anyone who learns or guesses your callback URL could POST a fake `"status": "PAID"` body. Always treat the callback as a *trigger to re-check*, never as the source of truth:
+FIB's webhook payload is **not signed**. Anyone who learns or guesses your callback URL could POST a fake `"status": "PAID"` body. Always treat the callback as a *trigger to re-check*, never as the source of truth. FIB expects your handler to respond with `202`, and will retry up to 5 times if it doesn't get a response:
 
 ```php
 Route::post('/fib/callback', function (\Illuminate\Http\Request $request) {
@@ -133,7 +170,7 @@ Route::post('/fib/callback', function (\Illuminate\Http\Request $request) {
         // fulfil the order
     }
 
-    return response()->noContent();
+    return response()->noContent(202);
 })->name('fib.callback')->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class])
   ->middleware('throttle:60,1');
 ```

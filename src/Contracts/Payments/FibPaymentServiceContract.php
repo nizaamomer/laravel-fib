@@ -7,6 +7,7 @@ namespace Nizaamomer\LaravelFib\Contracts\Payments;
 use Nizaamomer\LaravelFib\Data\Payments\PaymentData;
 use Nizaamomer\LaravelFib\Data\Payments\PaymentStatusData;
 use Nizaamomer\LaravelFib\Data\Payments\RefundData;
+use Nizaamomer\LaravelFib\Enums\Payments\PaymentCategory;
 
 interface FibPaymentServiceContract
 {
@@ -14,6 +15,9 @@ interface FibPaymentServiceContract
         float $amount,
         ?string $description = null,
         ?string $callbackUrl = null,
+        ?string $redirectUri = null,
+        ?string $expiresIn = null,
+        ?PaymentCategory $category = null,
         ?string $account = null,
     ): PaymentData;
 
