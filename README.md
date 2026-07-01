@@ -30,6 +30,7 @@ Built by [Nizaam Omer](https://nizaamomer.com) — [nizaamomer.com](https://niza
 - [Security](#security)
 - [Testing](#testing)
 - [FIB API Reference](#fib-api-reference)
+- [Changelog](#changelog)
 - [Author](#author)
 - [License](#license)
 
@@ -264,6 +265,10 @@ composer format        # Laravel Pint
 ## FIB API Reference
 
 See the [FIB Online Payments documentation](https://fib.iq/all-integrations/) for the underlying REST API this SDK wraps.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for what's changed in each release.
 
 ## Author
 
