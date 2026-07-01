@@ -14,7 +14,7 @@ final readonly class PaymentStatusData
     public function __construct(
         public string $paymentId,
         public PaymentStatus $status,
-        public CarbonImmutable $validUntil,
+        public ?CarbonImmutable $validUntil,
         public ?CarbonImmutable $paidAt,
         public ?float $amount,
         public ?string $currency,
@@ -32,7 +32,7 @@ final readonly class PaymentStatusData
         return new self(
             paymentId: $data['paymentId'],
             status: PaymentStatus::from($data['status']),
-            validUntil: CarbonImmutable::parse($data['validUntil']),
+            validUntil: isset($data['validUntil']) ? CarbonImmutable::parse($data['validUntil']) : null,
             paidAt: isset($data['paidAt']) ? CarbonImmutable::parse($data['paidAt']) : null,
             amount: isset($data['amount']['amount']) ? (float) $data['amount']['amount'] : null,
             currency: $data['amount']['currency'] ?? null,

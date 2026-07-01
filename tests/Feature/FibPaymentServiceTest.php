@@ -111,6 +111,38 @@ it('checks a payment status and persists it', function () {
         ->toBe(PaymentStatus::Unpaid);
 });
 
+it('handles a status response missing validUntil without erasing a previously known one', function () {
+    FibPayment::query()->create([
+        'account' => 'default',
+        'payment_id' => '4d6f7625-60f7-48e3-82e3-b4592a4eb993',
+        'amount' => 500,
+        'currency' => 'IQD',
+        'status' => PaymentStatus::Unpaid,
+        'valid_until' => now()->addHour(),
+    ]);
+
+    Http::fake([
+        '*/protected/v1/payments/*/status' => Http::response([
+            'paymentId' => '4d6f7625-60f7-48e3-82e3-b4592a4eb993',
+            'status' => 'UNPAID',
+            // validUntil intentionally omitted — FIB's staging API doesn't
+            // always return it on the status endpoint.
+            'paidAt' => null,
+            'amount' => ['amount' => 500, 'currency' => 'IQD'],
+            'decliningReason' => null,
+            'declinedAt' => null,
+            'paidBy' => null,
+        ], 200),
+    ]);
+
+    $status = app(FibPaymentServiceContract::class)->status('4d6f7625-60f7-48e3-82e3-b4592a4eb993');
+
+    expect($status->validUntil)->toBeNull();
+
+    expect(FibPayment::query()->where('payment_id', $status->paymentId)->value('valid_until'))
+        ->not->toBeNull();
+});
+
 it('parses REFUND_REQUESTED and REFUNDED statuses without error', function (string $status) {
     Http::fake([
         '*/protected/v1/payments/*/status' => Http::response([

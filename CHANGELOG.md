@@ -5,6 +5,20 @@ All notable changes to `nizaamomer/laravel-fib` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-07-02
+
+### Fixed
+
+- `FibPayment::status()` threw `Undefined array key "validUntil"` against FIB's staging API, which doesn't always return `validUntil` on the status endpoint (unlike the create endpoint, where it's always present). `PaymentStatusData::$validUntil` is now nullable.
+- The status-updated listener no longer overwrites a previously known `valid_until` (or `amount`/`currency`/`declining_reason`/`paid_at`/`declined_at`) with `null` when a later status response omits that field.
+
+## [1.0.1] - 2026-07-01
+
+### Added
+
+- `docs/examples/PaymentController.php` — a full reference controller covering every public method.
+- README: `payable` relation walkthrough with a copy-pasteable example, and a link to the full example controller.
+
 ## [1.0.0] - 2026-07-01
 
 ### Added
@@ -28,4 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - IBANs are format-validated before a payout is created.
 - Amounts and the `refundableFor` window are validated against FIB's constraints (greater than zero; 12 hours–7 days) before any request is sent.
 
+[1.0.2]: https://github.com/nizaamomer/laravel-fib/releases/tag/v1.0.2
+[1.0.1]: https://github.com/nizaamomer/laravel-fib/releases/tag/v1.0.1
 [1.0.0]: https://github.com/nizaamomer/laravel-fib/releases/tag/v1.0.0

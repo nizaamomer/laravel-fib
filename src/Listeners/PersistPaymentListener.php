@@ -30,9 +30,12 @@ final class PersistPaymentListener
     {
         $status = $event->status;
 
+        // FIB's status endpoint doesn't always return validUntil (unlike
+        // the create endpoint) — don't let a missing value here erase a
+        // valid_until we already persisted from PaymentCreated.
         FibPayment::query()->updateOrCreate(
             ['payment_id' => $status->paymentId],
-            [
+            array_filter([
                 'account' => $event->account,
                 'amount' => $status->amount,
                 'currency' => $status->currency,
@@ -41,7 +44,7 @@ final class PersistPaymentListener
                 'valid_until' => $status->validUntil,
                 'paid_at' => $status->paidAt,
                 'declined_at' => $status->declinedAt,
-            ],
+            ], fn ($value) => $value !== null),
         );
     }
 
