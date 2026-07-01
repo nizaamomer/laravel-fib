@@ -27,6 +27,7 @@ Built by [Nizaam Omer](https://nizaamomer.com) — [nizaamomer.com](https://niza
   - [Missed webhooks: the sync command](#missed-webhooks-the-sync-command)
 - [Payouts](#payouts)
 - [Automatic persistence](#automatic-persistence)
+- [Full example](#full-example)
 - [Security](#security)
 - [Testing](#testing)
 - [FIB API Reference](#fib-api-reference)
@@ -227,21 +228,57 @@ Payouts have **no webhook** — the only way to learn a payout's final status is
 
 ## Automatic persistence
 
-Every `create()`, status/details, and refund call fires an event (`PaymentCreated`, `PaymentStatusUpdated`, `PaymentRefundRequested`, `PayoutCreated`, `PayoutStatusUpdated`) that this package listens to and upserts into `fib_payments`, `fib_payouts`, and `fib_refunds` automatically — no manual tracking code required. Link your own models via the `payable` polymorphic relation if you need to associate a payment with an order/subscription:
+Every `create()`, status/details, and refund call fires an event (`PaymentCreated`, `PaymentStatusUpdated`, `PaymentRefundRequested`, `PayoutCreated`, `PayoutStatusUpdated`) that this package listens to and upserts into `fib_payments`, `fib_payouts`, and `fib_refunds` automatically — no manual tracking code required.
+
+### Linking a payment to your own model
+
+The `payable` relation is optional and one-directional from our side: `fib_payments`/`fib_payouts` have nullable `payable_type`/`payable_id` columns with no real foreign-key constraint, so your app's tables never need to know this package exists.
+
+Add the reverse relation on your own model (no migration needed on your side — the columns already live on our tables):
+
+```php
+// app/Models/Order.php
+use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Nizaamomer\LaravelFib\Models\FibPayment;
+
+class Order extends Model
+{
+    public function fibPayment(): MorphOne
+    {
+        return $this->morphOne(FibPayment::class, 'payable');
+    }
+}
+```
+
+Then associate it right after creating the payment — our `PaymentCreated` event fires synchronously, so the `fib_payments` row already exists by the time `create()` returns:
 
 ```php
 use Nizaamomer\LaravelFib\Models\FibPayment;
 
-FibPayment::where('payment_id', $paymentId)->first()?->payable()->associate($order)->save();
+$payment = FibPayment::create(amount: $order->total, description: "Order #{$order->id}");
+
+FibPayment::where('payment_id', $payment->paymentId)->first()
+    ?->payable()->associate($order)->save();
 ```
 
-Or listen to the events yourself for custom side effects:
+From then on, read it back from either side:
+
+```php
+$order->fibPayment->status;   // straight off your own model
+$fibPayment->payable;          // the Order instance, straight off ours
+```
+
+### Listening to events yourself
 
 ```php
 Event::listen(\Nizaamomer\LaravelFib\Events\Payments\PaymentStatusUpdated::class, function ($event) {
     // $event->status, $event->account
 });
 ```
+
+## Full example
+
+[`docs/examples/PaymentController.php`](docs/examples/PaymentController.php) is a complete, heavily-commented controller covering every public method in the package — creating and checking a payment, cancelling, refunding, the webhook callback, and the payout create → authorize → details flow. It's illustrative (not autoloaded), so copy what you need into your own app.
 
 ## Security
 
