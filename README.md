@@ -1,16 +1,21 @@
-# Laravel FIB
+# Laravel FIB Payment & Payout SDK
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/nizaamomer/laravel-fib.svg?style=flat-square)](https://packagist.org/packages/nizaamomer/laravel-fib)
-[![Tests](https://img.shields.io/github/actions/workflow/status/nizaamomer/laravel-fib/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/nizaamomer/laravel-fib/actions)
-[![Total Downloads](https://img.shields.io/packagist/dt/nizaamomer/laravel-fib.svg?style=flat-square)](https://packagist.org/packages/nizaamomer/laravel-fib)
+<p>
+<a href="https://packagist.org/packages/nizaamomer/laravel-fib"><img src="https://img.shields.io/packagist/v/nizaamomer/laravel-fib.svg?style=flat-square&label=Packagist&color=orange" alt="Latest Version on Packagist"></a>
+<a href="https://github.com/nizaamomer/laravel-fib/actions"><img src="https://img.shields.io/github/actions/workflow/status/nizaamomer/laravel-fib/run-tests.yml?branch=main&label=Tests&style=flat-square" alt="Tests"></a>
+<a href="https://packagist.org/packages/nizaamomer/laravel-fib"><img src="https://img.shields.io/packagist/dt/nizaamomer/laravel-fib.svg?style=flat-square&label=Downloads&color=blue" alt="Total Downloads"></a>
+<a href="https://packagist.org/packages/nizaamomer/laravel-fib"><img src="https://img.shields.io/packagist/php-v/nizaamomer/laravel-fib.svg?style=flat-square&label=PHP&color=777bb4" alt="PHP Version"></a>
+<a href="https://laravel.com"><img src="https://img.shields.io/badge/Laravel-11%20%7C%2012%20%7C%2013-ff2d20?style=flat-square" alt="Laravel Version"></a>
+<a href="LICENSE.md"><img src="https://img.shields.io/packagist/l/nizaamomer/laravel-fib.svg?style=flat-square&color=success" alt="License"></a>
+</p>
 
-A modern Laravel SDK for [First Iraqi Bank (FIB)](https://fib.iq) — **online payments** and **payouts** in one package, with typed DTOs, enums, multi-account support, automatic status persistence, and a webhook-safe status verification flow. Built for Laravel 11, 12 and 13.
+A modern Laravel SDK for [First Iraqi Bank (FIB)](https://fib.iq) — **payments**, **payouts**, and **refunds** in one package, with typed DTOs, enums, multi-account support, automatic status persistence, and a webhook-safe verification flow.
 
-Made by [Nizaam Omer](https://nizaamomer.com).
+Built by [Nizaam Omer](https://nizaamomer.com) — [nizaamomer.com](https://nizaamomer.com)
 
-## Why one package for both?
+## Why one package?
 
-Payments and payouts share the same OAuth2 client-credentials flow, the same `base_url`, and the same per-account credentials — splitting them into two packages would mean authenticating twice and configuring everything twice. `Nizaamomer\LaravelFib\Facades\FibPayment` handles money coming **in**, `Nizaamomer\LaravelFib\Facades\FibPayout` handles money going **out**, both backed by one shared, cached OAuth token per account.
+Payments, payouts, and refunds all share the same OAuth2 client-credentials flow, the same `base_url`, and the same per-account credentials — splitting them into separate packages would mean authenticating multiple times and configuring everything twice. `FibPayment` handles money coming **in** (and refunds going back out), `FibPayout` handles money going **out**, both backed by one shared, cached OAuth token per account.
 
 ## Requirements
 
@@ -29,7 +34,7 @@ Publish the config file:
 php artisan vendor:publish --tag="fib-config"
 ```
 
-Run the migrations (creates `fib_payments`, `fib_payouts` and `fib_refunds` tables — every payment/payout/refund is automatically persisted for you, no manual tracking code needed):
+Run the migrations — creates `fib_payments`, `fib_payouts` and `fib_refunds`; every payment, payout, and refund is persisted automatically, no manual tracking code needed:
 
 ```bash
 php artisan migrate
@@ -38,13 +43,13 @@ php artisan migrate
 Add your FIB credentials to `.env`:
 
 ```env
-FIB_DEFAULT_ACCOUNT=default
-FIB_BASE_URL=https://fib.stage.fib.iq
-FIB_CLIENT_ID=your-client-id
-FIB_CLIENT_SECRET=your-client-secret
-FIB_CURRENCY=IQD
-FIB_CALLBACK_URL=https://your-app.test/fib/callback
-FIB_REFUNDABLE_FOR=P7D                        # optional, defaults to P7D
+FIB_DEFAULT_ACCOUNT=default                    # which "accounts" entry in config/fib.php to use by default
+FIB_BASE_URL=https://fib.stage.fib.iq          # sandbox by default — swap for your production URL when ready
+FIB_CLIENT_ID=your-client-id                   # provided by FIB
+FIB_CLIENT_SECRET=your-client-secret           # provided by FIB — keep this out of version control
+FIB_CURRENCY=IQD                               # default currency for payments and payouts
+FIB_CALLBACK_URL=https://your-app.test/fib/callback  # FIB POSTs payment status changes here
+FIB_REFUNDABLE_FOR=P7D                         # optional, ISO-8601 duration — how long a payment stays refundable, defaults to P7D
 ```
 
 ### Multiple accounts
@@ -65,7 +70,8 @@ use Nizaamomer\LaravelFib\Facades\FibPayment;
 $payment = FibPayment::create(
     amount: 500.00,
     description: 'Order #1042',
-    callbackUrl: route('fib.callback'),
+    // callbackUrl and currency are optional — they fall back to
+    // FIB_CALLBACK_URL and FIB_CURRENCY automatically when omitted
 );
 
 $payment->paymentId;      // string
@@ -103,8 +109,6 @@ FibPayment::cancel($payment->paymentId);
 
 ### Refunding a payment
 
-> **⚠️ Undocumented endpoint.** `/payments/{id}/refund` does not appear anywhere in FIB's published API reference — this was reverse-engineered by reading First Iraqi Bank's own [fib-laravel-payment-sdk](https://packagist.org/packages/first-iraqi-bank/fib-laravel-payment-sdk) source, not from official docs. Verify the behavior against your sandbox account before relying on it in production, and don't be surprised if FIB changes it without notice.
-
 ```php
 $refund = FibPayment::refund($payment->paymentId);
 
@@ -114,9 +118,7 @@ $refund->traceId;        // ?string, present on failure — quote this to FIB su
 $refund->errorCodes;     // ?array<string>, present on failure
 ```
 
-A `PaymentRefundRequested` event fires either way and is persisted to `fib_refunds`, linked to the `fib_payments` row via `FibPayment::refund()`.
-
-Every `create()` call also sends `refundableFor` (from `FIB_REFUNDABLE_FOR`) to FIB, again mirroring the vendor SDK rather than official docs — this asks FIB to only allow refunds within that window, on top of your own `PaymentStatusData::isRefundable()` local policy check.
+A `PaymentRefundRequested` event fires either way and is persisted to `fib_refunds`, linked back to the `fib_payments` row.
 
 ### Handling the payment callback — never trust the webhook body
 
@@ -165,7 +167,7 @@ $payout = FibPayout::create(
     amount: 1000,
     targetAccountIban: 'IQ23FIQB004073628710001',
     description: 'Vendor payment',
-    currency: 'IQD', // IQD, USD or EUR
+    // currency is optional — falls back to FIB_CURRENCY automatically
 );
 
 $payout->payoutId;
@@ -187,7 +189,7 @@ Payouts have **no webhook** — the only way to learn a payout's final status is
 
 ## Automatic persistence
 
-Every `create()` and status/details call fires an event (`PaymentCreated`, `PaymentStatusUpdated`, `PayoutCreated`, `PayoutStatusUpdated`) that this package listens to and upserts into the `fib_payments` / `fib_payouts` tables automatically — no manual tracking code required. Link your own models via the `payable` polymorphic relation if you need to associate a payment with an order/subscription:
+Every `create()`, status/details, and refund call fires an event (`PaymentCreated`, `PaymentStatusUpdated`, `PaymentRefundRequested`, `PayoutCreated`, `PayoutStatusUpdated`) that this package listens to and upserts into `fib_payments`, `fib_payouts`, and `fib_refunds` automatically — no manual tracking code required. Link your own models via the `payable` polymorphic relation if you need to associate a payment with an order/subscription:
 
 ```php
 use Nizaamomer\LaravelFib\Models\FibPayment;
@@ -209,10 +211,10 @@ Event::listen(\Nizaamomer\LaravelFib\Events\Payments\PaymentStatusUpdated::class
 - **Webhook payloads are not trusted.** `FibPayment::status()` always calls FIB directly; use it inside your callback handler instead of reading `status` off the request body (see above).
 - **IDs are URL-encoded** before being interpolated into request paths, and **IBANs are format-validated** before a payout is created, so malformed or malicious input from your own callers can't corrupt the outgoing request.
 - **Amounts must be greater than zero** — validated before any request is sent.
-- **Credentials live in `.env`,** never in version control. Rotate `FIB_CLIENT_SECRET` immediately if it's ever exposed (e.g. committed, pasted into a chat, or leaked in a Postman export).
+- **Credentials live in `.env`,** never in version control. Rotate `FIB_CLIENT_SECRET` immediately if it's ever exposed.
 - **Tokens are cached, never logged.** The auth token is stored in your configured cache store, scoped per account, and is never written to logs or exceptions.
 
-If you discover a security issue, please email nizam.tci200237559463@spu.edu.iq instead of using the public issue tracker.
+If you discover a security issue, please email [nizaamomer@gmail.com](mailto:nizaamomer@gmail.com) instead of using the public issue tracker.
 
 ## Testing
 
@@ -228,7 +230,7 @@ See the [FIB Online Payments documentation](https://fib.iq/all-integrations/) fo
 
 ## Author
 
-Built and maintained by [Nizaam Omer](https://nizaamomer.com).
+**Nizaam Omer** — [nizaamomer.com](https://nizaamomer.com) · [nizaamomer@gmail.com](mailto:nizaamomer@gmail.com)
 
 ## License
 

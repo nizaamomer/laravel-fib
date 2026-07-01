@@ -6,12 +6,6 @@ namespace Nizaamomer\LaravelFib\Data\Payments;
 
 use Nizaamomer\LaravelFib\Enums\Payments\RefundStatus;
 
-/**
- * The /payments/{id}/refund endpoint is not part of FIB's published API
- * docs — this shape was reverse-engineered from First Iraqi Bank's own
- * fib-laravel-payment-sdk source. Treat it as unstable until confirmed
- * against your sandbox account.
- */
 final readonly class RefundData
 {
     public function __construct(

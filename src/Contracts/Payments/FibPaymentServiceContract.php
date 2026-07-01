@@ -23,11 +23,6 @@ interface FibPaymentServiceContract
 
     /**
      * Requests a refund for a paid payment.
-     *
-     * This endpoint is not documented in FIB's public API reference — it
-     * was reverse-engineered from First Iraqi Bank's own
-     * fib-laravel-payment-sdk source. Verify against your sandbox account
-     * before relying on it in production.
      */
     public function refund(string $paymentId, ?string $account = null): RefundData;
 }

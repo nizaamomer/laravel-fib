@@ -64,11 +64,10 @@ return [
     | Refundable Window
     |--------------------------------------------------------------------------
     |
-    | ISO-8601 duration describing how long after being paid a payment is
-    | still considered refundable by your application's own business rules.
-    | FIB does not expose a refund endpoint in its public API, so this is
-    | only used by PaymentStatusData::isRefundable() as a policy check for
-    | your own refund/dispute workflow.
+    | ISO-8601 duration describing how long after being paid a payment stays
+    | refundable. Sent to FIB on payment creation, and also used locally by
+    | PaymentStatusData::isRefundable() as a policy check before calling
+    | FibPayment::refund().
     |
     */
     'refundable_for' => env('FIB_REFUNDABLE_FOR', 'P7D'),

@@ -33,7 +33,7 @@ final class FibPayoutService implements FibPayoutServiceContract
         float $amount,
         string $targetAccountIban,
         ?string $description = null,
-        string $currency = 'IQD',
+        ?string $currency = null,
         ?string $account = null,
     ): PayoutData {
         if ($amount <= 0) {
@@ -47,6 +47,7 @@ final class FibPayoutService implements FibPayoutServiceContract
         }
 
         $account ??= (string) config('fib.default');
+        $currency ??= (string) config('fib.currency', 'IQD');
 
         $payload = array_filter([
             'amount' => [

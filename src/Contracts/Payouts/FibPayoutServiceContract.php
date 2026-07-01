@@ -13,7 +13,7 @@ interface FibPayoutServiceContract
         float $amount,
         string $targetAccountIban,
         ?string $description = null,
-        string $currency = 'IQD',
+        ?string $currency = null,
         ?string $account = null,
     ): PayoutData;
 

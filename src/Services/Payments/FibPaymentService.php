@@ -43,8 +43,6 @@ final class FibPaymentService implements FibPaymentServiceContract
             ],
             'statusCallbackUrl' => $callbackUrl ?? config('fib.callback_url'),
             'description' => $description !== null ? mb_substr($description, 0, 50) : null,
-            // Not documented in FIB's public API reference; sent by First
-            // Iraqi Bank's own SDK, so mirrored here for parity.
             'refundableFor' => config('fib.refundable_for'),
         ], fn ($value) => $value !== null);
 
